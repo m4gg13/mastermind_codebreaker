@@ -1,0 +1,161 @@
+vector<int> getRandomCode()
+void createSet()
+void combinationRecursive(int combinationLength, int position, vector<int> &current, vector<int> &elements)
+vector<int> reproduce()
+void fitness(int i, int g)
+void getExperts(int max)
+vector<int> expertChoice(int i)
+string checkCode(vector<int> guess, vector<int> code)
+void removeCode(vector<vector<int>> &set, vector<int> code)
+void pruneCodes(vector<vector<int>> &set, vector<int> code, string currentResponse)
+vector<vector<int>> minmax()
+int getMaxScore(map<string, int> inputMap)
+int getMinScore(map<vector<int>, int> inputMap)
+vector<int> getNextGuess(vector<vector<int>> nextGuesses)
+
+[[[[[[[[[[[[[[[[[
+
+vector<int> getRandomCode()
+void taketurn()
+void  gameinfo()
+void createSet()
+passGeneration()
+vector<int> reproduce()
+void fitness(int i, int g)
+void getExperts(int max)
+vector<int> expertChoice(int i)
+int getMaxScore(map<string, int> inputMap)
+int getMinScore(map<vector<int>, int> inputMap)
+vector<int> getNextGuess(vector< vector<int> > nextGuesses)
+void cleanup()
+
+]]]]]]]]]]]]]]]]]
+
+// these are the control factors. you can change them if you'd like to experiment.
+static const int NUM_COLOURS = 6
+static const int CODE_LENGTH = 4
+static const int EXPERTS_PER_GEN = 7
+static const int GEN_SIZE = 50
+static const int NUM_OF_GEN = 10
+static const int MAX_TURNS = 10
+static const double MUTATION_FREQ = 0.3
+
+
+static vector<vector<int>> experts
+static vector<vector<int>> combinations
+static vector<vector<int>> candidateSolutions
+static vector<vector<int>> nextGuesses
+static vector<vector<int>> previousGuesses
+static vector<int> fitness_ratings(GEN_SIZE, 0)
+static vector<int> similarity_scores((EXPERTS_PER_GEN * NUM_OF_GEN), 0)
+static vector<int> code;
+static vector<int> currentGuess;
+static vector<string> responseCodes;
+static string responsePegs;
+static bool won;
+static int turn;
+
+main :
+~~~~~~~~~~~~
+
+------------------------
+first turn, has not won, gets winning code by getRandomCode()
+print out the winning code so you know it before the AI plays
+------------------------
+just some code in main
+
+------------------------
+for each turn,
+------------------------
+taketurn()
+
+gameinfo()
+
+
+
+
+taketurn() :
+~~~~~~~~~~~~
+
+------------------------
+createSet() creates `combinations`
+------------------------
+all good already
+
+------------------------
+for each member in a generation,
+	assign it `r` which is a number 0-1295 inclusive
+	and while the `r` has not already been used
+	addMember()
+------------------------
+hoping to use that slicker while loop style
+
+------------------------
+     within a certain number of turns, and while the player has not won,
+------------------------
+just some logic in taketurn()
+
+
+------------------------
+     for each generation up to `NUM_OF_GEN`
+------------------------
+how about for each generation up to `NUM_OF_GEN`, passGeneration()
+
+------------------------
+     clear experts
+     get the response in `responsePegs`
+------------------------
+this is in taketurn()
+
+------------------------
+     end by bookkeeping
+------------------------
+cleanup()
+
+
+
+
+
+
+
+passGeneration():
+~~~~~~~~~~~~~~~~~
+
+------------------------
+     	 begin the generation by reproducing once per 2 members of the population
+	 each `reproduce()` remove one of the parents of the child produced
+	 calculate `fitness()` rating for each member of the population
+	 get the top `EXPERTS_PER_GEN` fitness rated members of the population
+------------------------
+within passGeneration()
+
+
+
+
+
+
+
+cleanup():
+~~~~~~~~~~
+
+------------------------
+     	 record the guess as a previous guess
+------------------------
+
+------------------------
+	 record the reponse pegs to judge from
+------------------------
+
+
+
+
+
+
+
+
+gameinfo():
+~~~~~~~~~~~
+
+------------------------
+     print some info about what has happened
+------------------------

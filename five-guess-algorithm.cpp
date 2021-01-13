@@ -9,6 +9,342 @@
 using namespace std;
 
 vector<int> getRandomCode();
+void taketurn();
+void  gameinfo();
+void createSet();
+void combinationRecursive(int combinationLength, int position, vector<int> &current, vector<int> &elements);
+void passGeneration();
+void removeCode(vector< vector<int> > &set, vector<int> currentCode);
+vector<int> reproduce();
+void fitness(int i, int g);
+void getExperts();
+vector<int> expertChoice(int i);
+string checkCode(vector<int> guess, vector<int> code);
+void cleanup();
+
+
+ // these are the control factors. you can change them if you'd like to experiment.
+static const int NUM_COLOURS = 6;
+static const int CODE_LENGTH = 4;
+static const int EXPERTS_PER_GEN = 7;
+static const int GEN_SIZE = 50;
+static const int NUM_OF_GEN = 10;
+static const int MAX_TURNS = 10;
+static const double MUTATION_FREQ = 0.3;
+
+
+static vector< vector<int> > experts;
+static vector< vector<int> > combinations;
+static vector< vector<int> > candidateSolutions;
+static vector< vector<int> > nextGuesses;
+static vector< vector<int> > previousGuesses;
+static vector<int> fitness_ratings(GEN_SIZE, 0);
+static vector<int> similarity_scores((EXPERTS_PER_GEN * NUM_OF_GEN), 0);
+static vector<int> code;
+static vector<int> currentGuess;
+static vector<string> responseCodes;
+static string responsePegs;
+static bool won;
+static int turn;
+
+
+int main() {
+
+  srand(time(0));
+
+  won = false;
+
+  createSet();
+  
+  code = getRandomCode();
+  // now print winning code
+
+  for (turn = 1; ((turn < MAX_TURNS) && (!won)); turn++) {
+    taketurn();
+
+    cout << "Turn: " << turn << endl;
+    cout << "Guess: ";
+    for (int i = 0; i < currentGuess.size(); ++i) {
+      cout << currentGuess[i] << " ";
+    }
+    cout << "= " << responsePegs << endl;
+
+  }
+
+  gameinfo();
+  
+}
+
+
+void taketurn() {
+
+  for (int curGen = 0; curGen < NUM_OF_GEN; curGen++) {
+    passGeneration();
+  }
+
+  currentGuess = expertChoice(experts.size()-1);
+
+  if (checkCode(currentGuess, code) == "BBBB") {
+    won = true;
+    return;
+  }
+  
+  experts.clear();
+
+  responsePegs = checkCode(currentGuess, code);
+
+  cleanup();
+  
+}
+
+void createSet() {
+
+  // first, setup elements vector
+  vector<int> current(CODE_LENGTH, 0);
+  vector<int> elements;
+  
+  for (int i = 1; i <= NUM_COLOURS; ++i) {
+    elements.push_back(i);
+  }
+  
+  cout<<"in here"<<endl;
+  cout<<elements.size()<<endl;
+  
+  combinationRecursive(CODE_LENGTH, 0, current, elements);
+  
+  // next, build candidateSolutions vector
+  vector<int> rands;
+  for (int p = 0; p < GEN_SIZE; p++) {
+
+    // while r is a number 0-1295 inclusive
+    // and it does not appear within `rands`
+    int r;
+    while (!(count(rands.begin(), rands.end(), (rand() % 1295)) > 0)) {
+      rands.push_back(r);
+      candidateSolutions.push_back(combinations[r]);
+    } 
+  }
+  
+}
+
+void combinationRecursive(int combinationLength, int position, vector<int> &current, vector<int> &elements) {
+
+    if (position >= combinationLength) {
+        combinations.push_back(current);
+        return;
+    }
+
+    for (int j = 0; j < elements.size(); ++j) {
+        current[position] = elements[j];
+        combinationRecursive(combinationLength, position + 1, current, elements);
+    }
+    return;
+
+}
+
+
+vector<int> getRandomCode() {
+
+    vector<int> code;
+    int max = NUM_COLOURS;
+    int min = 1;
+    int random;
+    //Returns the number of seconds since the UNIX epoch for a seed
+    srand(time(0));
+
+    for (int i = 0; i < CODE_LENGTH; ++i) {
+
+        random = min + (rand() % (max - min + 1));
+        code.push_back(random);
+    }
+
+    return code;
+}
+
+
+void passGeneration() {
+
+  for(int a = 0; a < (GEN_SIZE/2); a++) {
+    // return one of the parents and get rid of them to keep population size stable
+    vector<int> one_parent = reproduce();
+    removeCode(candidateSolutions, one_parent);
+  }
+
+  fitness((candidateSolutions.size()-1), (previousGuesses.size()-1));  
+
+  getExperts();
+  
+}
+
+// TODO
+void removeCode(vector< vector<int> > &set, vector<int> currentCode) {
+
+  int index;
+  vector<int>::iterator it;
+  it = find(set.begin(), set.end(), currentCode);
+
+  index = distance(set.begin(), it);
+  
+  set.erase(set.begin() + index);
+
+}
+
+vector<int> reproduce() {
+
+  int r0, r1, p, g;
+  vector<int> mum, pa, baby;
+  int halfGen = GEN_SIZE / 2;  
+
+  r0 = rand() % GEN_SIZE;
+  r1 = rand() % GEN_SIZE;
+
+  // you're not allowed to reproduce w yourself
+  while (r0 == r1) { 
+    r1 = rand() % GEN_SIZE; 
+  }
+  
+  mum = candidateSolutions[r0]; 
+  pa = candidateSolutions[r1]; 
+
+  for (int i = 0; i < CODE_LENGTH; i++) {
+    p = rand() % CODE_LENGTH;
+    baby.push_back((p | 1) ? mum[p] : pa[p]);
+  }
+
+  // now decide whether to mutate
+  g = rand() % 1000;
+  if (g < (MUTATION_FREQ * 1000)) {
+    // we're resusing these variables
+    r0 = rand() % CODE_LENGTH; // some spot to mutate at
+    r1 = rand() % NUM_COLOURS; // and some value to mutate to
+    baby[r0] = r1; // do the replacement
+  }
+  
+  // the baby is now a part of the gene pool
+  candidateSolutions.push_back(baby);
+
+  // if g is even, mum o.w. pa
+  return (g | 0 ? mum : pa); 
+  
+}
+
+void fitness(int i, int g) {
+
+  vector<int> s = candidateSolutions[i];
+  int score = 0;
+  int color_score = 0;
+  int spots_score = 0;
+  
+  for(int i = 0; i < GEN_SIZE; i++) {
+
+    for(int g = 0; g < previousGuesses.size(); g++) {
+
+      // check how many colors s and i-1 have in common
+      for (int y = 0 ; y < CODE_LENGTH; y++) { 
+	color_score += count(s.begin(), s.end(), previousGuesses[g][y]);                                                                                                                }
+      
+      // check how many of those colors are in the right spots
+      for (int z = 0; z < CODE_LENGTH; z++) {
+	spots_score += ((s[z] == previousGuesses[g][z]) ? 1 : 0); 
+      }
+      
+      // the number of return pegs is the number of correct colors. avg this and that
+      // the number of "W"s in the response code is the number of colors in the right spot. again, avg this and that
+      score += (responseCodes[g].size() + color_score) / 2;
+      score += (count(responseCodes[g].begin(), responseCodes[g].end(), 'W') + spots_score) / 2;
+      
+      // this candidate will get reevaluated each generation
+      // was += but i dont think that was right...
+      fitness_ratings[i] = score;
+
+    }
+  }
+  
+}
+
+void getExperts() {
+
+  int r0, e, index_of_max;
+  int i = 0;
+  vector<int> used_rands;
+  
+  vector<int>::iterator first = fitness_ratings.begin();  
+  vector<int>::iterator last = fitness_ratings.end();
+  vector<int> candidateSolution;
+  int max = (int) *max_element(fitness_ratings.begin(), fitness_ratings.end());
+  
+  while (e < EXPERTS_PER_GEN) {
+    i++;
+    if (count(first, last, max)) {
+      max_ind = distance(first, max_element(first, last));
+      candidateSolution = candidateSolutions([index_of_max]);
+      experts.push_back(candidateSolution);
+      e++;
+    }
+    
+    if (i == GEN_SIZE) {
+      max--;
+    }
+  }
+  
+}
+
+vector<int> expertChoice(int i) {
+
+  // get similarity scores
+
+  // return the most similar one
+
+}
+
+string checkCode(vector<int> guess, vector<int> code) {
+
+  string result;
+  
+  //Get black/coloured - number of colors in the right spot
+  for (int i = 0; i < CODE_LENGTH; ++i) {
+    
+    if (guess[i] == code[i]) {
+      result.append("B");
+      // why multiply by -1?
+      guess[i] *= -1;
+      code[i] *= -1;
+    }
+  }
+  
+  //Get white - number of colors correct
+  for (int i = 0; i < CODE_LENGTH; ++i) {
+    
+    // oh, this is why multiply by -1
+    if (code[i] > 0) {
+
+      vector<int>::iterator it = find(guess.begin(), guess.end(), code[i]);
+      int index;
+      if (it != guess.end()) {
+	
+	index = distance(guess.begin(), it);
+	result.append("W");
+	// and then you put it back
+	guess[index] *= -1;
+      }
+    }
+  }
+  
+  // returns the response, duh
+  return result;
+
+}
+
+void cleanup() {
+
+  previousGuesses.push_back(currentGuess);
+  responseCodes.push_back(responsePegs);
+  
+}
+
+
+/*
+vector<int> getRandomCode();
 
 void createSet();
 
@@ -16,22 +352,22 @@ void combinationRecursive(int combinationLength, int position, vector<int> &curr
 
 vector<int> reproduce(); // use everyone in the pop in pairs, replace half of the pop with the children
 void fitness(int i, int g); // assign a fitness value to everyone in the pop
-void getExperts(int max); //add the experts from this pop to the expert pool
+void getExperts(); //add the experts from this pop to the expert pool
 vector<int> expertChoice(int i); // from the expert pool, wich is the most similar?
 
 string checkCode(vector<int> guess, vector<int> code);
 
-void removeCode(vector<vector<int>> &set, vector<int> code);
+void removeCode(vector< vector<int> > &set, vector<int> code);
 
-void pruneCodes(vector<vector<int>> &set, vector<int> code, string currentResponse);
+void pruneCodes(vector< vector<int> > &set, vector<int> code, string currentResponse);
 
-vector<vector<int>> minmax();
+vector< vector<int> > minmax();
 
 int getMaxScore(map<string, int> inputMap);
 
 int getMinScore(map<vector<int>, int> inputMap);
 
-vector<int> getNextGuess(vector<vector<int>> nextGuesses);
+vector<int> getNextGuess(vector< vector<int> > nextGuesses);
 
 static const int NUM_COLOURS = 6;
 static const int CODE_LENGTH = 4;
@@ -40,33 +376,41 @@ static const int GEN_SIZE = 50; // population size per generation
 static const int NUM_OF_GEN = 10; // lol
 static const int MAX_TURNS = 10;
 static const double MUTATION_FREQ = 0.3; // how often to mutate 
-static vector<vector<int>> combinations; //Master set of combinations 1111 to 6666
-static vector<vector<int>> candidateSolutions;
-static vector<vector<int>> nextGuesses;
-static vector<vector<int>> previousGuesses; // got to keep track of this too now
+static vector< vector<int> > combinations; //Master set of combinations 1111 to 6666
+static vector< vector<int> > candidateSolutions;
+static vector< vector<int> > nextGuesses;
+static vector< vector<int> > previousGuesses; // got to keep track of this too now
+static vector<int> experts;
 static vector<int> fitness_ratings(GEN_SIZE, 0); // each member of candidateSolutions has a score at its index
 static vector<int> similarity_scores((EXPERTS_PER_GEN * NUM_OF_GEN), 0); // to determine which expert should be the guess
 static vector<int> code;
-static vector<int> currentGuess;
 static vector<string> responseCodes; // is this used?
+static vector<int> currentGuess;
 static string responsePegs;
 static bool won;
 static int turn;
 
-static vector<vector<int>> experts; // the most easily matched in a generation
+*/
 
-int main() {
+// int main() {
 
+  /*
   srand(time(0));
 
     turn = 1;
     won = false;
 
     code = getRandomCode();
-
+    
+    // TODO why this number? why is it not a global var
     //Create the set of 1296 possible codes
     createSet();
+ 
     vector<int> rands;
+  */ 
+   /*
+OLD
+    // TODO this is ugly
     int e = GEN_SIZE; // ensure that we get 50 elements out of the fully enumerated set... oops this is a weird way to do this
     for (int p = 0; p < e; p++){
       int r = rand() % 1295;
@@ -77,9 +421,23 @@ int main() {
 	e++;
       }
     }
+    */
+  /*
+NEW
+    for (int p = 0; p < GEN_SIZE; p++) {
 
+      // while r is a number 0-1295 inclusive
+      // and it does not appear within `rands`
+      int r;
+      while (!(count(rands.begin(), rands.end(), (rand() % 1295)) > 0)) {
+	rands.push_back(r);
+	candidateSolutions.push_back(combinations[r]);
+      }
+      
+    }
+  */
     // candidateSolutions.insert(candidateSolutions.end(), combinations.begin(), combinations.end());
-
+  /*
     cout<<"csol size: ";
     cout <<candidateSolutions.size()<<endl;
     cout << "Code: ";
@@ -113,32 +471,36 @@ int main() {
 	//cout<<"size of candidateSolns : "<<candidateSolutions.size()<<endl;
 
 	//cout<<"1 do i get in here?"<<endl;
-
-	// for each generation do this
+	*/
+  /*
+  // for each generation do this
 	fitness((candidateSolutions.size()-1), (previousGuesses.size()-1)); // rate every s belonging to S and store it in fitness_ratings
 	  
 	//cout<<"AND HERE WE AREE ============================="<<endl;
 	
-	int max = (int) *max_element(fitness_ratings.begin(), fitness_ratings.end());;
+	// int max = (int) *max_element(fitness_ratings.begin(), fitness_ratings.end());;
 	
 	cout<<"8 do i get in here?"<<endl;
-	
-	getExperts(max); // then we determine which ones are experts
+  */
+  /*
+	getExperts(); // then we determine which ones are experts
 	
 	//cout<<"i feel like we get stuck in getExperts"<<endl;
 
 	cur_gen++;
       }// end generation
-
+  */
       //cout<<"inf do i get in here?"<<endl;
-
+  /*
+      // TODO : what even is this stuff?
       if (turn != 1) { // totally messy but this is also not going to be necessary on first turn
 	// currentGuess is just the expert-est expert
 	currentGuess = expertChoice(experts.size()-1);
       } else {
-	currentGuess = {1, 1, 2, 2}; //1122
+	currentGuess = {1, 1, 2, 2};
       }
-
+  */
+  /*
       //cout<<"EXPERT SIZE BEFORE CLEAR : "<<experts.size()<<endl;
       // clear out the expert pool
       experts.clear();
@@ -146,12 +508,12 @@ int main() {
       
       //Play the guess to get a response of colored and white pegs
       responsePegs = checkCode(currentGuess, code);
-      
+    
       // done with this one now
       previousGuesses.push_back(currentGuess);
       // record the response
       responseCodes.push_back(responsePegs);
-
+  
       cout << "Turn: " << turn << endl;
       cout << "Guess: ";
       for (int i = 0; i < currentGuess.size(); ++i) {
@@ -181,8 +543,9 @@ int main() {
       turn++; // only take a turn after 20 generations have passed
     } // end game
     return 0;
+  */
 }
-
+/*
 vector<int> getRandomCode() {
 
     vector<int> code;
@@ -199,8 +562,10 @@ vector<int> getRandomCode() {
     }
 
     return code;
-}
 
+}
+*/
+/*
 void createSet() {
 
     vector<int> current(CODE_LENGTH, 0);
@@ -229,20 +594,22 @@ void combinationRecursive(int combinationLength, int position, vector<int> &curr
     }
     return;
 }
-
+*/
 // for every 2 elements in combinations, make a baby and delete one of the parents from the 
 // gene pool to maiintain population size
+// returns one of the two parents in order to delete it
+/*
 vector<int> reproduce() {
   
   int g;
   int p0, p1, p2, p3;
   int r0, r1;
   vector<int> mum, pa, baby;
-
+*/
   // again with the (pseudo)random numbers, lets do two at a time this time.
   // loop unroll this bad boy
   // we use two members every time so GEN_SIZE divided by 2
-
+  /*
   r0 = rand() % GEN_SIZE;
   r1 = rand() % GEN_SIZE;
   while (r0 == r1) { // you're not allowed to reproduce w yourself
@@ -273,8 +640,9 @@ vector<int> reproduce() {
   
   // the baby is now a part of the gene pool
   candidateSolutions.push_back(baby);
-
+  */
   /*
+OLD
   for(int u = 0; u < (GEN_SIZE / 2); u++){
     r0 = rand() % GEN_SIZE;
     r1 = rand() % GEN_SIZE;
@@ -309,13 +677,16 @@ vector<int> reproduce() {
 
   }
   */
-
+  /*
+NEW
   // this will be the parent we get rid of
   return (g | 0 ? mum : pa); // if g is even, mum o.w. pa
 
 }
-
+  */
 // give every s in candidateSolutions a fitness rating at the same index in fitness_ratings variable
+/*
+NEW
 void fitness(int i, int g) {
 
   vector<int> s = candidateSolutions[i];
@@ -349,6 +720,7 @@ void fitness(int i, int g) {
     }
 
   }
+*/
   /*  
   // i is where we are in candidateSolutions
   // g is where we are in the previousGuesses
@@ -399,10 +771,12 @@ void fitness(int i, int g) {
   cout<<"g : "<<g<<endl;
   fitness(i, g); // compare with the next oldest guess
   */
+  /*
 }
-
-void getExperts(int max) {
-
+  */
+/*
+void getExperts() {
+*/
   // i keeps track of when we have enough experts
   // max goes down from the actual max of fitness_ratings to whenever the set is full
 
@@ -432,14 +806,15 @@ void getExperts(int max) {
   */
 
   // so basically this but lets find the ones with the best fitness ratings
-  
-  int r0, e, max_ind;
+  /*
+  int r0, e, index_of_max;
   int i = 0;
   vector<int> used_rands;
 
   vector<int>::iterator first = fitness_ratings.begin();  
   vector<int>::iterator last = fitness_ratings.end();
-
+  vector<int> candidateSolution;
+  int max = (int) *max_element(fitness_ratings.begin(), fitness_ratings.end());
 
   while (e < EXPERTS_PER_GEN) {
     //cout<<"we've got "<<e<<" experts so far and r0 : "<<r0<<" and max : "<<max<<endl;
@@ -448,10 +823,11 @@ void getExperts(int max) {
     //if (!count(used_rands.begin(), used_rands.end(), r0)) {
       if (count(first, last, max)) {
 	max_ind = distance(first, max_element(first, last));
-	experts.push_back(candidateSolutions[max_ind]);
+	candidateSolution = candidateSolutions([index_of_max]);
+	experts.push_back(candidateSolution);
 	e++;
       }
-
+  */
       /*
       if (fitness_ratings[r0] == max) {
 	experts.push_back(candidateSolutions[r0]);
@@ -459,14 +835,15 @@ void getExperts(int max) {
       }
       */
       //} 
-
+/*
       if (i == GEN_SIZE) {
 	max--;
       }
   }
 
 }
-
+*/
+/*
 vector<int> expertChoice(int i) {
   cout<<"begin expert choice"<<endl;
 
@@ -485,7 +862,9 @@ vector<int> expertChoice(int i) {
       cout<<"adding "<<s0<<endl;
       strings_of_experts.push_back(s0); 
     }
-    /*
+*/  
+  /*
+OLD
     string tr = to_string(experts[m+0][0]);
     cout<<" this is s0 plain : "<<tr<<endl;
     cout<<experts[m+0][1]<<experts[m+0][2]<<experts[m+0][3]<<endl;
@@ -519,7 +898,7 @@ vector<int> expertChoice(int i) {
     string s4(c4.begin(), c4.end());
     strings_of_experts.push_back(s4);
     */
-
+/*
     string s0 = strings_of_experts[m+0];
     string s1 = strings_of_experts[m+1];
     string s2 = strings_of_experts[m+2];
@@ -622,11 +1001,11 @@ string checkCode(vector<int> guess, vector<int> code) {
     return result;
 }
 
-void removeCode(vector<vector<int>> &set, vector<int> currentCode) {
+void removeCode(vector< vector<int> > &set, vector<int> currentCode) {
 
   // cout<<"remove : "<<currentCode[0]<<currentCode[1]<<endl;
     int index;
-    for (auto it = set.begin(); it != set.end(); it++) {
+    for (vector<int>::iterator it = set.begin(); it != set.end(); it++) {
         index = distance(set.begin(), it);
 
         if (set[index] == currentCode) {
@@ -636,10 +1015,10 @@ void removeCode(vector<vector<int>> &set, vector<int> currentCode) {
     }
 }
 
-void pruneCodes(vector<vector<int>> &set, vector<int> currentCode, string currentResponse) {
+void pruneCodes(vector< vector<int> > &set, vector<int> currentCode, string currentResponse) {
 
     int index;
-    vector<vector<int>>::iterator it = set.begin();
+    vector< vector<int> >::iterator it = set.begin();
 
     while (it != set.end()) {
         index = distance(set.begin(), it);
@@ -656,7 +1035,7 @@ vector<vector<int>> minmax() {
 
     map<string, int> scoreCount;
     map<vector<int>, int> score;
-    vector<vector<int>> nextGuesses;
+    vector< vector<int> > nextGuesses;
     int max, min;
 
     for (int i = 0; i < combinations.size(); ++i) {
@@ -711,7 +1090,7 @@ int getMinScore(map<vector<int>, int> inputMap) {
     return min;
 }
 
-vector<int> getNextGuess(vector<vector<int>> nextGuesses) {
+vector<int> getNextGuess(vector< vector<int> > nextGuesses) {
 
     vector<int> nextGuess;
 
@@ -728,3 +1107,4 @@ vector<int> getNextGuess(vector<vector<int>> nextGuesses) {
 
     return nextGuess;
 }
+*/
